@@ -84,27 +84,18 @@ func CreateTable(tableName string) (*dynamodb.CreateTableOutput, error) {
 	// Create DynamoDB client
 	svc := dynamodb.New(sess)
 
-	// Create table
-
+	// Create the table input with "Prefix" as the primary key (HASH)
 	input := &dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
 			{
-				AttributeName: aws.String("Year"),
-				AttributeType: aws.String("N"),
-			},
-			{
-				AttributeName: aws.String("Title"),
-				AttributeType: aws.String("S"),
+				AttributeName: aws.String("Prefix"), // Define Prefix attribute
+				AttributeType: aws.String("S"),      // Prefix is a string (S)
 			},
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{
-				AttributeName: aws.String("Year"),
+				AttributeName: aws.String("Prefix"), // Primary key (HASH)
 				KeyType:       aws.String("HASH"),
-			},
-			{
-				AttributeName: aws.String("Title"),
-				KeyType:       aws.String("RANGE"),
 			},
 		},
 		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
@@ -114,6 +105,7 @@ func CreateTable(tableName string) (*dynamodb.CreateTableOutput, error) {
 		TableName: aws.String(tableName),
 	}
 
+	// Create the table
 	result, err := svc.CreateTable(input)
 	if err != nil {
 		log.Print(err)
@@ -123,7 +115,7 @@ func CreateTable(tableName string) (*dynamodb.CreateTableOutput, error) {
 	return result, nil
 }
 
-func AddItem(item interface{}, tableName string) (*dynamodb.PutItemOutput, error) {
+func AddItem(item TrieNode, tableName string) (*dynamodb.PutItemOutput, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -202,7 +194,7 @@ func getItems() interface{} {
 	return items
 }
 
-func ReadItem(prefix, tableName string) (interface{}, error) {
+func ReadItem(prefix, tableName string) (*TrieNode, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -231,7 +223,7 @@ func ReadItem(prefix, tableName string) (interface{}, error) {
     return nil, errors.New(msg)
 	}
 			
-	var item interface{}
+	var item *TrieNode
 
 	err = dynamodbattribute.UnmarshalMap(result.Item, &item)
 	if err != nil {
