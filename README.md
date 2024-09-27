@@ -9,6 +9,7 @@ Sample trie table in AWS DynamoDB:
 <img width="686" alt="image" src="https://github.com/user-attachments/assets/2478c40a-3494-4efd-854e-91ca6aaf12b7">
 
 <br/>
+<br/>
 
 Output when searching:
 
