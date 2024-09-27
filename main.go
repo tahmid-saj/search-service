@@ -1,7 +1,11 @@
 package main
 
 import (
+	"os"
+	"search-service/routes"
 
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -101,4 +105,12 @@ func main() {
 	// 	return
 	// }
 	// fmt.Print(deleteResult)
+
+	godotenv.Load()
+
+	server := gin.Default()
+
+	routes.RegisterRoutes(server)
+
+	server.Run(os.Getenv("PORT"))
 }
