@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"search-service/trie"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -14,6 +13,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
+
+type TrieNode struct {
+	Prefix          string
+	FrequentQueries map[string]int
+	ChildNodes      []string
+	LeafNode        bool
+}
 
 func ListTables() ([]string, error) {
 	// Initialize a session that the SDK will use to load
@@ -110,7 +116,7 @@ func CreateTable(tableName string) (*dynamodb.CreateTableOutput, error) {
 	return result, nil
 }
 
-func AddItem(item trie.TrieNode, tableName string) (*dynamodb.PutItemOutput, error) {
+func AddItem(item TrieNode, tableName string) (*dynamodb.PutItemOutput, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -189,7 +195,7 @@ func getItems(fileName string) interface{} {
 	return items
 }
 
-func ReadItem(prefix, tableName string) (*trie.TrieNode, error) {
+func ReadItem(prefix, tableName string) (*TrieNode, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -218,7 +224,7 @@ func ReadItem(prefix, tableName string) (*trie.TrieNode, error) {
     return nil, errors.New(msg)
 	}
 			
-	var item *trie.TrieNode
+	var item *TrieNode
 
 	err = dynamodbattribute.UnmarshalMap(result.Item, &item)
 	if err != nil {
@@ -229,7 +235,7 @@ func ReadItem(prefix, tableName string) (*trie.TrieNode, error) {
 	return item, nil
 }
 
-func UpdateItem(updatedValue trie.TrieNode, tableName string) (*dynamodb.UpdateItemOutput, error) {
+func UpdateItem(updatedValue TrieNode, tableName string) (*dynamodb.UpdateItemOutput, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.

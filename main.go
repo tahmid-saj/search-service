@@ -1,8 +1,8 @@
 package main
 
 import (
-	"search-service/dynamodb"
 	"fmt"
+	"search-service/trie"
 )
 
 func main() {
@@ -71,4 +71,17 @@ func main() {
 	// 	return
 	// }
 	// fmt.Print(deletedItem)
+
+	// AddSearchQuery
+	searchQueries := []string{
+		"ark", "all", "algo", "do", "dag", "daily", "daisy",
+	}
+	tableName := "search-service-trie"
+	for _, searchQuery := range searchQueries {
+		res, err := trie.AddSearchQuery(searchQuery, tableName)
+		if err != nil {
+			return
+		}
+		fmt.Print(res)
+	}
 }
