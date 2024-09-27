@@ -10,5 +10,5 @@ func RegisterRoutes(server *gin.Engine) {
 	server.POST("/search/add", addSearchQuery)
 
 	// Delete search query
-	server.DELETE("/search/:searchQuery", deleteSearchQuery)
+	server.POST("/search/delete", deleteSearchQuery)
 }
