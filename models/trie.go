@@ -3,13 +3,13 @@ package models
 import "search-service/trie"
 
 type SearchQueryInput struct {
-	SearchQuery string
-	TableName   string
+	SearchQuery string `json:"searchQuery"`
+	TableName   string `json:"tableName"`
 }
 
 type Response struct {
-	Ok       bool
-	Response interface{}
+	Ok       bool `json:"ok"`
+	Response interface{} `json:"response"`
 }
 
 func Search(searchQueryInput SearchQueryInput) (*Response, error) {
