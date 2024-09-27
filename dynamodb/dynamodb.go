@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"search-service/trie"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -13,12 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
-
-type TrieNode struct {
-	Prefix string
-	FrequentQueries map[string]int
-	ChildNodes []string
-}
 
 func ListTables() ([]string, error) {
 	// Initialize a session that the SDK will use to load
@@ -36,38 +31,38 @@ func ListTables() ([]string, error) {
 
 	var tableNames []string
 	for {
-			// Get the list of tables
-			result, err := svc.ListTables(input)
-			if err != nil {
-					if aerr, ok := err.(awserr.Error); ok {
-							switch aerr.Code() {
-							case dynamodb.ErrCodeInternalServerError:
-									fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-							default:
-									fmt.Println(aerr.Error())
-							}
-					} else {
-							// Print the error, cast err to awserr.Error to get the Code and
-							// Message from an error.
-							log.Print(err)
-							return nil, err
-					}
-					log.Print(err)
-					return nil, err
+		// Get the list of tables
+		result, err := svc.ListTables(input)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case dynamodb.ErrCodeInternalServerError:
+					fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
+				default:
+					fmt.Println(aerr.Error())
+				}
+			} else {
+				// Print the error, cast err to awserr.Error to get the Code and
+				// Message from an error.
+				log.Print(err)
+				return nil, err
 			}
+			log.Print(err)
+			return nil, err
+		}
 
-			for _, tableName := range result.TableNames {
-				tableNames = append(tableNames, *tableName)
-			}
+		for _, tableName := range result.TableNames {
+			tableNames = append(tableNames, *tableName)
+		}
 
-			// assign the last read tablename as the start for our next call to the ListTables function
-			// the maximum number of table names returned in a call is 100 (default), which requires us to make
-			// multiple calls to the ListTables function to retrieve all table names
-			input.ExclusiveStartTableName = result.LastEvaluatedTableName
+		// assign the last read tablename as the start for our next call to the ListTables function
+		// the maximum number of table names returned in a call is 100 (default), which requires us to make
+		// multiple calls to the ListTables function to retrieve all table names
+		input.ExclusiveStartTableName = result.LastEvaluatedTableName
 
-			if result.LastEvaluatedTableName == nil {
-					break
-			}
+		if result.LastEvaluatedTableName == nil {
+			break
+		}
 	}
 
 	return tableNames, nil
@@ -115,7 +110,7 @@ func CreateTable(tableName string) (*dynamodb.CreateTableOutput, error) {
 	return result, nil
 }
 
-func AddItem(item TrieNode, tableName string) (*dynamodb.PutItemOutput, error) {
+func AddItem(item trie.TrieNode, tableName string) (*dynamodb.PutItemOutput, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -182,8 +177,8 @@ func AddItemsFromJSON(items []interface{}, tableName string) (*dynamodb.PutItemO
 }
 
 // Get table items from JSON file
-func getItems() interface{} {
-	raw, err := ioutil.ReadFile("data.json")
+func getItems(fileName string) interface{} {
+	raw, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		log.Print(err)
 		return err
@@ -194,7 +189,7 @@ func getItems() interface{} {
 	return items
 }
 
-func ReadItem(prefix, tableName string) (*TrieNode, error) {
+func ReadItem(prefix, tableName string) (*trie.TrieNode, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -223,7 +218,7 @@ func ReadItem(prefix, tableName string) (*TrieNode, error) {
     return nil, errors.New(msg)
 	}
 			
-	var item *TrieNode
+	var item *trie.TrieNode
 
 	err = dynamodbattribute.UnmarshalMap(result.Item, &item)
 	if err != nil {
@@ -234,7 +229,7 @@ func ReadItem(prefix, tableName string) (*TrieNode, error) {
 	return item, nil
 }
 
-func UpdateItem(updatedValue TrieNode, tableName string) (*dynamodb.UpdateItemOutput, error) {
+func UpdateItem(updatedValue trie.TrieNode, tableName string) (*dynamodb.UpdateItemOutput, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -271,6 +266,7 @@ func UpdateItem(updatedValue TrieNode, tableName string) (*dynamodb.UpdateItemOu
 		ExpressionAttributeNames: map[string]*string{
 			"#FQ": aws.String("FrequentQueries"),
 			"#CN": aws.String("ChildNodes"),
+			"#LN": aws.String("LeafNode"),
 		},
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":fq": {
@@ -279,15 +275,18 @@ func UpdateItem(updatedValue TrieNode, tableName string) (*dynamodb.UpdateItemOu
 			":cn": {
 				L: childNodes, // list of child nodes
 			},
+			":ln": {
+				BOOL: aws.Bool(updatedValue.LeafNode), // LeafNode value
+			},
 		},
-		UpdateExpression: aws.String("SET #FQ = :fq, #CN = :cn"),
+		UpdateExpression: aws.String("SET #FQ = :fq, #CN = :cn, #LN = :ln"),
 		ReturnValues:     aws.String("UPDATED_NEW"),
 	}
 
 	// Execute the update
 	result, err := svc.UpdateItem(input)
 	if err != nil {
-		log.Print( err)
+		log.Printf("Failed to update item: %v", err)
 		return nil, err
 	}
 
@@ -307,9 +306,9 @@ func DeleteItem(prefix, tableName string) (*dynamodb.DeleteItemOutput, error) {
 
 	input := &dynamodb.DeleteItemInput{
     Key: map[string]*dynamodb.AttributeValue{
-        "Prefix": {
-            S: aws.String(prefix),
-        },
+			"Prefix": {
+				S: aws.String(prefix),
+			},
     },
     TableName: aws.String(tableName),
 	}
