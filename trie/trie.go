@@ -14,9 +14,13 @@ func Search(searchQuery string, tableName string) ([]SearchResult, error) {
 	// ReadItem first from the table
 	itemReturned, err := dynamodb.ReadItem(searchQuery, tableName)
 	if err != nil {
+		AddSearchQuery(searchQuery, tableName)
 		return nil, err
 	}
 
+	// if the item does exist, update the table's frequent queries, child nodes, leaf node, etc and return the search result
+	UpdateTrieNodes(searchQuery, tableName)
+	
 	searchResults := []SearchResult{}
 	for searchResult, searchResultFrequency := range itemReturned.FrequentQueries {
 		searchResults = append(searchResults, SearchResult{
@@ -41,6 +45,7 @@ func AddSearchQuery(searchQuery string, tableName string) (bool, error) {
 		currentPrefix := searchQuery[:prefixIndex + 1]
 
 		readItem, err := dynamodb.ReadItem(currentPrefix, tableName)
+
 		if err != nil {
 			// if the prefix doesn't exist, create it using AddItem (add the Prefix, FrequentQueries, ChildNodes to the next Prefix and set LeafNode accordingly)
 			
@@ -67,6 +72,12 @@ func AddSearchQuery(searchQuery string, tableName string) (bool, error) {
 			if err != nil {
 				return false, err
 			}
+		}
+
+		// read the item again to get the updated item after creation
+		readItem, err = dynamodb.ReadItem(currentPrefix, tableName)
+		if err != nil {
+			return false, err
 		}
 
 		// if the prefix exists, update the current TrieNode (itemRead) (update it's FrequentQueries by adding the searchQuery to the FrequentQueries if the length is < 5, and leave it's Childnodes, LeafNode unchanged)
@@ -121,6 +132,13 @@ func DeleteTrieNode(searchQuery string, tableName string) (bool, error) {
 // helper functions
 
 func updateFrequentQueries(frequentQueries map[string]int, searchQuery string) map[string]int {
+	// if searchQuery exists in frequentQueries, increase it's frequency by 1 and return the updated frequentQueries
+	_, exists := frequentQueries[searchQuery]
+	if exists {
+		frequentQueries[searchQuery] = frequentQueries[searchQuery] + 1
+		return frequentQueries
+	}
+
 	// if the length of frequentQueries is < 5, add searchQuery with a frequency of 1 to frequentQueries and return it
 	if len(frequentQueries) < 5 {
 		frequentQueries[searchQuery] = 1

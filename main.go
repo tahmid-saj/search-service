@@ -73,15 +73,24 @@ func main() {
 	// fmt.Print(deletedItem)
 
 	// AddSearchQuery
-	searchQueries := []string{
-		"ark", "all", "algo", "do", "dag", "daily", "daisy",
-	}
+	// searchQueries := []string{
+	// 	"ark", "all", "algo", "do", "dag", "daily", "daisy",
+	// }
+	// tableName := "search-service-trie"
+	// for _, searchQuery := range searchQueries {
+	// 	res, err := trie.AddSearchQuery(searchQuery, tableName)
+	// 	if err != nil {
+	// 		return
+	// 	}
+	// 	fmt.Print(res)
+	// }
+
+	// Search
+	searchQuery := "a"
 	tableName := "search-service-trie"
-	for _, searchQuery := range searchQueries {
-		res, err := trie.AddSearchQuery(searchQuery, tableName)
-		if err != nil {
-			return
-		}
-		fmt.Print(res)
+	searchResult, err := trie.Search(searchQuery, tableName)
+	if err != nil {
+		return
 	}
+	fmt.Print(searchResult)
 }
