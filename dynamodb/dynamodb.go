@@ -1,15 +1,26 @@
 package dynamodb
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-func ListDynamoDBTables() ([]string, error) {
+type TrieNode struct {
+	Prefix string
+	FrequentQueries map[string]int
+	ChildNodes []string
+}
+
+func ListTables() ([]string, error) {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
 	// and region from the shared configuration file ~/.aws/config.
@@ -60,4 +71,261 @@ func ListDynamoDBTables() ([]string, error) {
 	}
 
 	return tableNames, nil
+}
+
+func CreateTable(tableName string) (*dynamodb.CreateTableOutput, error) {
+	// Initialize a session that the SDK will use to load
+	// credentials from the shared credentials file ~/.aws/credentials
+	// and region from the shared configuration file ~/.aws/config.
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	// Create DynamoDB client
+	svc := dynamodb.New(sess)
+
+	// Create table
+
+	input := &dynamodb.CreateTableInput{
+		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+			{
+				AttributeName: aws.String("Year"),
+				AttributeType: aws.String("N"),
+			},
+			{
+				AttributeName: aws.String("Title"),
+				AttributeType: aws.String("S"),
+			},
+		},
+		KeySchema: []*dynamodb.KeySchemaElement{
+			{
+				AttributeName: aws.String("Year"),
+				KeyType:       aws.String("HASH"),
+			},
+			{
+				AttributeName: aws.String("Title"),
+				KeyType:       aws.String("RANGE"),
+			},
+		},
+		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(10),
+			WriteCapacityUnits: aws.Int64(10),
+		},
+		TableName: aws.String(tableName),
+	}
+
+	result, err := svc.CreateTable(input)
+	if err != nil {
+		log.Print(err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func AddItem(item interface{}, tableName string) (*dynamodb.PutItemOutput, error) {
+	// Initialize a session that the SDK will use to load
+	// credentials from the shared credentials file ~/.aws/credentials
+	// and region from the shared configuration file ~/.aws/config.
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	// Create DynamoDB client
+	svc := dynamodb.New(sess)
+
+	attributeValue, err := dynamodbattribute.MarshalMap(item)
+	if err != nil {
+		log.Print(err)
+		return nil, err
+	}
+
+	input := &dynamodb.PutItemInput{
+		Item:      attributeValue,
+		TableName: aws.String(tableName),
+	}
+
+	result, err := svc.PutItem(input)
+	if err != nil {
+		log.Print(err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func AddItemsFromJSON(items []interface{}, tableName string) (*dynamodb.PutItemOutput, error) {
+	// Initialize a session that the SDK will use to load
+	// credentials from the shared credentials file ~/.aws/credentials
+	// and region from the shared configuration file ~/.aws/config.
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	// Create DynamoDB client
+	svc := dynamodb.New(sess)
+
+	var result *dynamodb.PutItemOutput
+	for _, item := range items {
+    attributeValue, err := dynamodbattribute.MarshalMap(item)
+    if err != nil {
+			log.Print(err)
+			return nil, err
+    }
+
+    // Create item in table Movies
+    input := &dynamodb.PutItemInput{
+			Item:      attributeValue,
+			TableName: aws.String(tableName),
+    }
+
+    result, err = svc.PutItem(input)
+    if err != nil {
+			log.Print(err)
+			return nil, err
+    }
+	}
+
+	return result, nil
+}
+
+// Get table items from JSON file
+func getItems() interface{} {
+	raw, err := ioutil.ReadFile("data.json")
+	if err != nil {
+		log.Print(err)
+		return err
+	}
+
+	var items interface{}
+	json.Unmarshal(raw, &items)
+	return items
+}
+
+func ReadItem(prefix, tableName string) (interface{}, error) {
+	// Initialize a session that the SDK will use to load
+	// credentials from the shared credentials file ~/.aws/credentials
+	// and region from the shared configuration file ~/.aws/config.
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	// Create DynamoDB client
+	svc := dynamodb.New(sess)
+
+	result, err := svc.GetItem(&dynamodb.GetItemInput{
+    TableName: aws.String(tableName),
+    Key: map[string]*dynamodb.AttributeValue{
+			"Prefix": {
+				S: aws.String(prefix),
+			},
+    },
+	})
+	if err != nil {
+		log.Print(err)
+		return nil, err
+	}
+
+	if result.Item == nil {
+    msg := "Could not find '" + prefix + "'"
+    return nil, errors.New(msg)
+	}
+			
+	var item interface{}
+
+	err = dynamodbattribute.UnmarshalMap(result.Item, &item)
+	if err != nil {
+		log.Print(err)
+		return nil, err
+	}
+
+	return item, nil
+}
+
+func UpdateItem(updatedValue TrieNode, tableName string) (*dynamodb.UpdateItemOutput, error) {
+	// Initialize a session that the SDK will use to load
+	// credentials from the shared credentials file ~/.aws/credentials
+	// and region from the shared configuration file ~/.aws/config.
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	// Create DynamoDB client
+	svc := dynamodb.New(sess)
+
+	// Prepare FrequentQueries and ChildNodes for DynamoDB
+	frequentQueries := map[string]*dynamodb.AttributeValue{}
+	for k, v := range updatedValue.FrequentQueries {
+		frequentQueries[k] = &dynamodb.AttributeValue{
+			N: aws.String(fmt.Sprintf("%d", v)),
+		}
+	}
+
+	childNodes := []*dynamodb.AttributeValue{}
+	for _, v := range updatedValue.ChildNodes {
+		childNodes = append(childNodes, &dynamodb.AttributeValue{
+			S: aws.String(v),
+		})
+	}
+
+	// Prepare the update expression and the attribute values
+	input := &dynamodb.UpdateItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]*dynamodb.AttributeValue{
+			"Prefix": {
+				S: aws.String(updatedValue.Prefix),
+			},
+		},
+		ExpressionAttributeNames: map[string]*string{
+			"#FQ": aws.String("FrequentQueries"),
+			"#CN": aws.String("ChildNodes"),
+		},
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":fq": {
+				M: frequentQueries, // map of frequent queries
+			},
+			":cn": {
+				L: childNodes, // list of child nodes
+			},
+		},
+		UpdateExpression: aws.String("SET #FQ = :fq, #CN = :cn"),
+		ReturnValues:     aws.String("UPDATED_NEW"),
+	}
+
+	// Execute the update
+	result, err := svc.UpdateItem(input)
+	if err != nil {
+		log.Print( err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func DeleteItem(prefix, tableName string) (*dynamodb.DeleteItemOutput, error) {
+	// Initialize a session that the SDK will use to load
+	// credentials from the shared credentials file ~/.aws/credentials
+	// and region from the shared configuration file ~/.aws/config.
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	// Create DynamoDB client
+	svc := dynamodb.New(sess)
+
+	input := &dynamodb.DeleteItemInput{
+    Key: map[string]*dynamodb.AttributeValue{
+        "Prefix": {
+            S: aws.String(prefix),
+        },
+    },
+    TableName: aws.String(tableName),
+	}
+
+	result, err := svc.DeleteItem(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
