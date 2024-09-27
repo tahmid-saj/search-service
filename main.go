@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"search-service/trie"
+
 )
 
 func main() {
@@ -86,11 +85,20 @@ func main() {
 	// }
 
 	// Search
-	searchQuery := "a"
-	tableName := "search-service-trie"
-	searchResult, err := trie.Search(searchQuery, tableName)
-	if err != nil {
-		return
-	}
-	fmt.Print(searchResult)
+	// searchQuery := "a"
+	// tableName := "search-service-trie"
+	// searchResult, err := trie.Search(searchQuery, tableName)
+	// if err != nil {
+	// 	return
+	// }
+	// fmt.Print(searchResult)
+
+	// DeleteTrieNode
+	// searchQuery := "dag"
+	// tableName := "search-service-trie"
+	// deleteResult, err := trie.DeleteTrieNode(searchQuery, tableName)
+	// if err != nil {
+	// 	return
+	// }
+	// fmt.Print(deleteResult)
 }
