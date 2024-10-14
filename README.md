@@ -11,6 +11,39 @@ Sample trie table in AWS DynamoDB:
 <br/>
 <br/>
 
-Output when searching:
+API output when searching:
 
-<img width="469" alt="image" src="https://github.com/user-attachments/assets/68626b86-a58f-4919-b2ff-40f453415903">
+```
+// Input
+{
+    "searchQuery": "alg",
+    "tableName": "search-service-trie"
+}
+```
+
+
+```
+// Output
+{
+
+    "ok": true,
+    "response": [
+        {
+            "Result": "algorithms",
+            "ResultFrequency": 2
+        },
+        {
+            "Result": "alg",
+            "ResultFrequency": 3
+        },
+        {
+            "Result": "algorit",
+            "ResultFrequency": 1
+        },
+        {
+            "Result": "algo",
+            "ResultFrequency": 2
+        }
+    ]
+}
+```
