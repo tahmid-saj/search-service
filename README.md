@@ -5,6 +5,24 @@ Typeahead search service using a Trie data structure approach. Developed using G
 <br/>
 <br/>
 
+## Directory structure
+
+The directory structure is as follows:
+
+- **dynamodb/**: Contains DynamoDB-specific configurations and utilities for managing the trie structure in the database.
+- **models/**: Defines the data models used in the application, including Trie-related entities.
+- **routes/**: Manages the API routes for handling search requests.
+- **trie/**: Implements the Trie data structure logic for the typeahead search.
+- **utils/**: General utility functions used across the application.
+- **.gitignore**: Specifies files and directories to ignore in Git.
+- **README.md**: Documentation for the project setup and usage.
+- **go.mod**: Go module dependencies.
+- **go.sum**: Checksum of Go module dependencies.
+- **main.go**: Entry point of the application, where the server is initialized.
+
+<br/>
+<br/>
+
 ## Overview
 
 ### Design
